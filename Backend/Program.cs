@@ -12,6 +12,10 @@ builder.Services.AddControllers();
 
 builder.Services.AddScoped<CurveRenderer>();
 
+builder.Services.AddScoped<CurveRenderer>();
+builder.Services.AddSingleton<RenderTaskQueue>();
+builder.Services.AddHostedService<RenderBackgroundService>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend",

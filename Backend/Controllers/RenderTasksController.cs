@@ -3,7 +3,6 @@ using Backend.Models;
 using Backend.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Hosting;
 
 namespace Backend.Controllers
 {
@@ -12,34 +11,32 @@ namespace Backend.Controllers
     public class RenderTasksController : ControllerBase
     {
         private readonly AppDbContext _context;
-        private readonly CurveRenderer _renderer;
-        private readonly IWebHostEnvironment _env;
+        private readonly RenderTaskQueue _taskQueue;
 
-        public RenderTasksController(AppDbContext context, CurveRenderer renderer, IWebHostEnvironment env)
+        public RenderTasksController(AppDbContext context, RenderTaskQueue taskQueue)
         {
             _context = context;
-            _renderer = renderer;
-            _env = env;
+            _taskQueue = taskQueue;
         }
 
         [HttpPost]
         public async Task<IActionResult> CreateTask([FromBody] RenderTask task)
         {
-            long complexity = (long)task.CanvasWidth * task.CanvasHeight * task.Iterations;
-            if (complexity > 10_000_000_000)
-            {
-                return BadRequest("Завдання занадто важке. Зменште роздільну здатність або кількість ітерацій.");
-            }
+           // long complexity = (long)task.CanvasWidth * task.CanvasHeight * task.Iterations;
+           // if (complexity > 100_000_000_000)
+            //{
+            //    return BadRequest("Завдання занадто важке.");
+           // }
 
-            string imageUrl = _renderer.RenderCurve(task, _env.WebRootPath);
-
-            task.ResultImageUrl = imageUrl;
-            task.Status = "Виконано";
+            task.Status = "В черзі";
 
             _context.RenderTasks.Add(task);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(); 
 
-            return Ok(new { message = "Завдання успішно виконано", taskId = task.Id });
+        
+            await _taskQueue.QueueBackgroundWorkItemAsync(task);
+
+            return Ok(new { message = "Завдання додано в чергу", taskId = task.Id });
         }
 
         [HttpGet]

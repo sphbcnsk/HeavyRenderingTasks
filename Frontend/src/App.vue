@@ -1,14 +1,15 @@
 <script setup>
-    import { ref, onMounted } from 'vue';
+    import { ref, onMounted, onUnmounted } from 'vue';
     import api from './services/api';
 
     const figureType = ref('Epicycloid');
     const canvasWidth = ref(1920);
     const canvasHeight = ref(1080);
-    const iterations = ref(10000);
+    const iterations = ref(100000);
     const message = ref('');
 
     const tasks = ref([]);
+    let pollingInterval = null;
 
     const fetchTasks = async () => {
         try {
@@ -21,6 +22,12 @@
 
     onMounted(() => {
         fetchTasks();
+        
+        pollingInterval = setInterval(fetchTasks, 3000);
+    });
+
+    onUnmounted(() => {
+        if (pollingInterval) clearInterval(pollingInterval);
     });
 
     const submitTask = async () => {
@@ -34,7 +41,6 @@
             });
 
             message.value = `Успіх! ${response.data.message}. ID задачі: ${response.data.taskId}`;
-
             await fetchTasks();
 
         } catch (error) {
