@@ -1,7 +1,9 @@
 ﻿using Backend.Data;
 using Backend.Models;
+using Backend.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Hosting;
 
 namespace Backend.Controllers
 {
@@ -10,10 +12,14 @@ namespace Backend.Controllers
     public class RenderTasksController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly CurveRenderer _renderer;
+        private readonly IWebHostEnvironment _env;
 
-        public RenderTasksController(AppDbContext context)
+        public RenderTasksController(AppDbContext context, CurveRenderer renderer, IWebHostEnvironment env)
         {
             _context = context;
+            _renderer = renderer;
+            _env = env;
         }
 
         [HttpPost]
@@ -25,12 +31,15 @@ namespace Backend.Controllers
                 return BadRequest("Завдання занадто важке. Зменште роздільну здатність або кількість ітерацій.");
             }
 
-            task.Status = "В черзі";
+            string imageUrl = _renderer.RenderCurve(task, _env.WebRootPath);
+
+            task.ResultImageUrl = imageUrl;
+            task.Status = "Виконано";
 
             _context.RenderTasks.Add(task);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Завдання успішно створено", taskId = task.Id });
+            return Ok(new { message = "Завдання успішно виконано", taskId = task.Id });
         }
 
         [HttpGet]

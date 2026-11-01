@@ -2,17 +2,14 @@
     import { ref, onMounted } from 'vue';
     import api from './services/api';
 
-    // Реактивні змінні форми
     const figureType = ref('Epicycloid');
     const canvasWidth = ref(1920);
     const canvasHeight = ref(1080);
     const iterations = ref(10000);
     const message = ref('');
 
-    // Змінна для збереження списку завдань
     const tasks = ref([]);
 
-    // Функція для отримання списку завдань з бекенду
     const fetchTasks = async () => {
         try {
             const response = await api.get('/RenderTasks');
@@ -22,7 +19,6 @@
         }
     };
 
-    // Завантажуємо список при відкритті сторінки
     onMounted(() => {
         fetchTasks();
     });
@@ -39,7 +35,6 @@
 
             message.value = `Успіх! ${response.data.message}. ID задачі: ${response.data.taskId}`;
 
-            // Оновлюємо список після успішного створення нового завдання
             await fetchTasks();
 
         } catch (error) {
@@ -56,6 +51,7 @@
         }
     };
 </script>
+
 <template>
     <div class="container">
         <h1>Рендерер параметричних кривих</h1>
@@ -101,16 +97,20 @@
                         <th>Розмір (px)</th>
                         <th>Ітерації</th>
                         <th>Статус</th>
+                        <th>Результат</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr v-for="task in tasks" :key="task.id">
-            
                         <td>{{ task.id.substring(0, 8) }}...</td>
                         <td>{{ task.figureType }}</td>
                         <td>{{ task.canvasWidth }} x {{ task.canvasHeight }}</td>
                         <td>{{ task.iterations }}</td>
                         <td>{{ task.status }}</td>
+                        <td>
+                            <img v-if="task.resultImageUrl" :src="`http://localhost:5090${task.resultImageUrl}`" alt="Крива" height="60" style="border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;" title="Відкрити зображення" onclick="window.open(this.src, '_blank')" />
+                            <span v-else>—</span>
+                        </td>
                     </tr>
                 </tbody>
             </table>
