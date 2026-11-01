@@ -1,6 +1,7 @@
 ﻿using Backend.Data;
 using Backend.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Backend.Controllers
 {
@@ -18,7 +19,6 @@ namespace Backend.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateTask([FromBody] RenderTask task)
         {
-            
             long complexity = (long)task.CanvasWidth * task.CanvasHeight * task.Iterations;
             if (complexity > 10_000_000_000)
             {
@@ -31,6 +31,13 @@ namespace Backend.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Завдання успішно створено", taskId = task.Id });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetAllTasks()
+        {
+            var tasks = await _context.RenderTasks.ToListAsync();
+            return Ok(tasks);
         }
     }
 }

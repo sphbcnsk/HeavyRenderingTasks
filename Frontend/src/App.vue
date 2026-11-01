@@ -1,19 +1,35 @@
 <script setup>
-    import { ref } from 'vue';
+    import { ref, onMounted } from 'vue';
     import api from './services/api';
 
-    // Реактивні змінні для полів форми
+    // Реактивні змінні форми
     const figureType = ref('Epicycloid');
     const canvasWidth = ref(1920);
     const canvasHeight = ref(1080);
-    const iterations = ref(100000);
+    const iterations = ref(10000);
     const message = ref('');
 
-    // Функція відправки даних на бекенд
+    // Змінна для збереження списку завдань
+    const tasks = ref([]);
+
+    // Функція для отримання списку завдань з бекенду
+    const fetchTasks = async () => {
+        try {
+            const response = await api.get('/RenderTasks');
+            tasks.value = response.data;
+        } catch (error) {
+            console.error("Помилка завантаження списку:", error);
+        }
+    };
+
+    // Завантажуємо список при відкритті сторінки
+    onMounted(() => {
+        fetchTasks();
+    });
+
     const submitTask = async () => {
         try {
             message.value = 'Відправка...';
-
             const response = await api.post('/RenderTasks', {
                 figureType: figureType.value,
                 canvasWidth: canvasWidth.value,
@@ -22,12 +38,14 @@
             });
 
             message.value = `Успіх! ${response.data.message}. ID задачі: ${response.data.taskId}`;
+
+            // Оновлюємо список після успішного створення нового завдання
+            await fetchTasks();
+
         } catch (error) {
             if (error.response) {
                 let errorData = error.response.data;
-               
                 if (typeof errorData === 'object') {
-                    
                     message.value = `Помилка: ${errorData.title || JSON.stringify(errorData)}`;
                 } else {
                     message.value = `Помилка: ${errorData}`;
@@ -38,7 +56,6 @@
         }
     };
 </script>
-
 <template>
     <div class="container">
         <h1>Рендерер параметричних кривих</h1>
@@ -72,6 +89,31 @@
 
         <div v-if="message" class="status-message">
             {{ message }}
+        </div>
+
+        <div class="tasks-list" v-if="tasks.length > 0">
+            <h2>Список завдань</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Фігура</th>
+                        <th>Розмір (px)</th>
+                        <th>Ітерації</th>
+                        <th>Статус</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="task in tasks" :key="task.id">
+            
+                        <td>{{ task.id.substring(0, 8) }}...</td>
+                        <td>{{ task.figureType }}</td>
+                        <td>{{ task.canvasWidth }} x {{ task.canvasHeight }}</td>
+                        <td>{{ task.iterations }}</td>
+                        <td>{{ task.status }}</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 </template>
@@ -144,5 +186,40 @@
         border-radius: 8px;
         font-weight: 600;
         text-align: center;
+    }
+
+    .tasks-list {
+        margin-top: 30px;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+
+        .tasks-list h2 {
+            color: #4a3b4e;
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+    }
+
+    th, td {
+        padding: 12px;
+        border-bottom: 1px solid #eee;
+    }
+
+    th {
+        background-color: #f8f9fa;
+        color: #0b5c53;
+        font-weight: bold;
+    }
+
+    tr:hover {
+        background-color: #fcfcfc;
     }
 </style>
