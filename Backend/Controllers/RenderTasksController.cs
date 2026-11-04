@@ -23,7 +23,7 @@ namespace Backend.Controllers
         public async Task<IActionResult> CreateTask([FromBody] RenderTask task)
         {
             long complexity = (long)task.CanvasWidth * task.CanvasHeight * task.Iterations;
-            long maxComplexity = 10_000_000_000;
+            long maxComplexity = 10_000_000_000_000;
 
             if (complexity > maxComplexity)
             {
@@ -43,11 +43,11 @@ namespace Backend.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAllTasks()
         {
-            var tasks = await _context.RenderTasks.ToListAsync();
+            var tasks = await _context.RenderTasks.OrderByDescending(t => t.Id).ToListAsync();
             return Ok(tasks);
         }
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteTask(Guid id) // Змінили string на Guid
+        public async Task<IActionResult> DeleteTask(Guid id) 
         {
             var task = await _context.RenderTasks.FindAsync(id);
             if (task == null)

@@ -26,22 +26,25 @@ namespace Backend.Services
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-             
                 var task = await _taskQueue.DequeueAsync(stoppingToken);
 
                 try
                 {
-                   
                     using var scope = _scopeFactory.CreateScope();
                     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                     var renderer = scope.ServiceProvider.GetRequiredService<CurveRenderer>();
 
-                    string imageUrl = renderer.RenderCurve(task, _env.WebRootPath);
-
-                   
                     var dbTask = await dbContext.RenderTasks.FindAsync(new object[] { task.Id }, stoppingToken);
                     if (dbTask != null)
                     {
+                        Action<int> onProgress = (percent) =>
+                        {
+                            dbTask.Status = $"Малювання: {percent}%";
+                            dbContext.SaveChanges(); 
+                        };
+
+                        string imageUrl = renderer.RenderCurve(task, _env.WebRootPath, onProgress);
+
                         dbTask.Status = "Виконано";
                         dbTask.ResultImageUrl = imageUrl;
                         await dbContext.SaveChangesAsync(stoppingToken);

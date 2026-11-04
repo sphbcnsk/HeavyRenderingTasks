@@ -8,7 +8,7 @@ namespace Backend.Services
 {
     public class CurveRenderer
     {
-        public string RenderCurve(RenderTask task, string webRootPath)
+        public string RenderCurve(RenderTask task, string webRootPath, Action<int> reportProgress = null)
         {
             int width = task.CanvasWidth;
             int height = task.CanvasHeight;
@@ -23,7 +23,7 @@ namespace Backend.Services
                     Span<Rgba32> pixelRow = accessor.GetRowSpan(y);
                     for (int x = 0; x < pixelRow.Length; x++)
                     {
-                        pixelRow[x] = new Rgba32(0, 255, 0);
+                        pixelRow[x] = new Rgba32(255, 255, 0);
                     }
                 }
             });
@@ -33,6 +33,9 @@ namespace Backend.Services
 
             bool isLissajous = !string.IsNullOrEmpty(task.FigureType) &&
                                task.FigureType.Contains("Lissajous", StringComparison.OrdinalIgnoreCase);
+
+            int reportStep = iterations / 20;
+            if (reportStep == 0) reportStep = 1;
 
             for (int i = 0; i < iterations; i++)
             {
@@ -71,11 +74,18 @@ namespace Backend.Services
                         if (drawX >= 0 && drawX < width && drawY >= 0 && drawY < height)
                         {
                             if (isLissajous)
-                                image[drawX, drawY] = new Rgba32(255, 105, 180); 
+                                image[drawX, drawY] = new Rgba32(255, 105, 180);
                             else
-                                image[drawX, drawY] = new Rgba32(0, 210, 255);   
+                                image[drawX, drawY] = new Rgba32(0, 210, 255);
                         }
                     }
+                }
+
+              
+                if (i > 0 && i % reportStep == 0 && reportProgress != null)
+                {
+                    int percent = (int)((double)i / iterations * 100);
+                    reportProgress(percent);
                 }
             }
 

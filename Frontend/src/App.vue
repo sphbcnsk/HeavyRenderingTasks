@@ -22,7 +22,7 @@
 
     onMounted(() => {
         fetchTasks();
-        pollingInterval = setInterval(fetchTasks, 3000);
+        pollingInterval = setInterval(fetchTasks, 500);
     });
 
     onUnmounted(() => {
@@ -30,7 +30,7 @@
     });
 
     const submitTask = async () => {
-        const maxComplexity = 10000000000; 
+        const maxComplexity = 10000000000000; 
         const currentComplexity = canvasWidth.value * canvasHeight.value * iterations.value;
 
         if (currentComplexity > maxComplexity) {
