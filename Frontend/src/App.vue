@@ -22,7 +22,6 @@
 
     onMounted(() => {
         fetchTasks();
-        
         pollingInterval = setInterval(fetchTasks, 3000);
     });
 
@@ -31,6 +30,14 @@
     });
 
     const submitTask = async () => {
+        const maxComplexity = 10000000000; 
+        const currentComplexity = canvasWidth.value * canvasHeight.value * iterations.value;
+
+        if (currentComplexity > maxComplexity) {
+            message.value = `Помилка клієнта: Перевищено ліміт обчислень! Дозволено ${maxComplexity}, у вас ${currentComplexity}. Зменште розмір або кількість ітерацій.`;
+            return;
+        }
+
         try {
             message.value = 'Відправка...';
             const response = await api.post('/RenderTasks', {
@@ -54,6 +61,17 @@
             } else {
                 message.value = `Помилка з'єднання: ${error.message}`;
             }
+        }
+    };
+
+    const deleteTask = async (id) => {
+        if (!confirm('Ви впевнені, що хочете видалити/скасувати це завдання?')) return;
+        try {
+            await api.delete(`/RenderTasks/${id}`);
+            await fetchTasks(); 
+        } catch (error) {
+            console.error("Помилка видалення:", error);
+            alert("Не вдалося видалити завдання.");
         }
     };
 </script>
@@ -104,6 +122,7 @@
                         <th>Ітерації</th>
                         <th>Статус</th>
                         <th>Результат</th>
+                        <th>Дії</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -116,6 +135,9 @@
                         <td>
                             <img v-if="task.resultImageUrl" :src="`http://localhost:5090${task.resultImageUrl}`" alt="Крива" height="60" style="border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;" title="Відкрити зображення" onclick="window.open(this.src, '_blank')" />
                             <span v-else>—</span>
+                        </td>
+                        <td>
+                            <button @click="deleteTask(task.id)" class="delete-btn">Видалити</button>
                         </td>
                     </tr>
                 </tbody>
@@ -228,4 +250,19 @@
     tr:hover {
         background-color: #fcfcfc;
     }
+
+    .delete-btn {
+        background-color: #e74c3c;
+        padding: 6px 12px;
+        font-size: 12px;
+        margin-top: 0;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+        .delete-btn:hover {
+            background-color: #c0392b;
+        }
 </style>

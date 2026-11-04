@@ -71,9 +71,9 @@ namespace Backend.Services
                         if (drawX >= 0 && drawX < width && drawY >= 0 && drawY < height)
                         {
                             if (isLissajous)
-                                image[drawX, drawY] = new Rgba32(255, 105, 180); // Рожевий
+                                image[drawX, drawY] = new Rgba32(255, 105, 180); 
                             else
-                                image[drawX, drawY] = new Rgba32(0, 210, 255);   // Блакитний
+                                image[drawX, drawY] = new Rgba32(0, 210, 255);   
                         }
                     }
                 }
