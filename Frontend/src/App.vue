@@ -133,7 +133,7 @@
                         <td>{{ task.iterations }}</td>
                         <td>{{ task.status }}</td>
                         <td>
-                            <img v-if="task.resultImageUrl" :src="`http://localhost:5090${task.resultImageUrl}`" alt="Крива" height="60" style="border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;" title="Відкрити зображення" onclick="window.open(this.src, '_blank')" />
+                            <img v-if="task.resultImageUrl" :src="`http://localhost:5000${task.resultImageUrl}`" alt="Крива" height="60" style="border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;" title="Відкрити зображення" onclick="window.open(this.src, '_blank')" />
                             <span v-else>—</span>
                         </td>
                         <td>
