@@ -3,12 +3,13 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
 using System.IO;
+using System.Threading; 
 
 namespace Backend.Services
 {
     public class CurveRenderer
     {
-        public string RenderCurve(RenderTask task, string webRootPath, Action<int> reportProgress = null)
+        public string RenderCurve(RenderTask task, string webRootPath, Action<int> reportProgress = null, CancellationToken cancellationToken = default)
         {
             int width = task.CanvasWidth;
             int height = task.CanvasHeight;
@@ -39,6 +40,11 @@ namespace Backend.Services
 
             for (int i = 0; i < iterations; i++)
             {
+                if (i % 1000 == 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+
                 double t = i * 0.005;
                 double px = 0, py = 0;
 
@@ -81,13 +87,14 @@ namespace Backend.Services
                     }
                 }
 
-              
                 if (i > 0 && i % reportStep == 0 && reportProgress != null)
                 {
                     int percent = (int)((double)i / iterations * 100);
                     reportProgress(percent);
                 }
             }
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             string resultsFolder = Path.Combine(webRootPath, "results");
             if (!Directory.Exists(resultsFolder))

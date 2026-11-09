@@ -1,8 +1,5 @@
-﻿using System.Threading.Channels;
-using Backend.Models;
-using System;
-using System.Threading;
-using System.Threading.Tasks;
+﻿using Backend.Models;
+using System.Threading.Channels;
 
 namespace Backend.Services
 {
@@ -12,15 +9,17 @@ namespace Backend.Services
 
         public RenderTaskQueue()
         {
-         
-            var options = new BoundedChannelOptions(100) { FullMode = BoundedChannelFullMode.Wait };
+            var options = new BoundedChannelOptions(100) 
+            {
+                FullMode = BoundedChannelFullMode.Wait
+            };
             _queue = Channel.CreateBounded<RenderTask>(options);
         }
 
-        public async ValueTask QueueBackgroundWorkItemAsync(RenderTask workItem)
+        public bool TryQueueBackgroundWorkItem(RenderTask workItem)
         {
             if (workItem == null) throw new ArgumentNullException(nameof(workItem));
-            await _queue.Writer.WriteAsync(workItem);
+            return _queue.Writer.TryWrite(workItem);
         }
 
         public async ValueTask<RenderTask> DequeueAsync(CancellationToken cancellationToken)

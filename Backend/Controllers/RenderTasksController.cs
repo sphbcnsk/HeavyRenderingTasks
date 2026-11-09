@@ -15,11 +15,13 @@ namespace Backend.Controllers
     {
         private readonly AppDbContext _context;
         private readonly RenderTaskQueue _taskQueue;
+        private readonly TaskCancellationManager _cancellationManager;
 
-        public RenderTasksController(AppDbContext context, RenderTaskQueue taskQueue)
+        public RenderTasksController(AppDbContext context, RenderTaskQueue taskQueue, TaskCancellationManager cancellationManager)
         {
             _context = context;
             _taskQueue = taskQueue;
+            _cancellationManager = cancellationManager;
         }
 
         private int GetCurrentUserId()
@@ -32,7 +34,7 @@ namespace Backend.Controllers
             {
                 return userId;
             }
-            return 0; 
+            return 0;
         }
 
         [HttpGet]
@@ -75,6 +77,29 @@ namespace Backend.Controllers
                 return Unauthorized(new { message = "Ваш обліковий запис не знайдено. Будь ласка, перелогіньтеся." });
             }
 
+            if (request.CanvasWidth < 100 || request.CanvasHeight < 100)
+            {
+                return BadRequest(new { message = "Мінімальний розмір полотна: 100x100 пікселів." });
+            }
+
+            if (request.CanvasWidth > 5000 || request.CanvasHeight > 5000 || (long)request.CanvasWidth * request.CanvasHeight > 10_000_000)
+            {
+                return BadRequest(new { message = "Перевищено ліміт пам'яті. Максимальний розмір полотна — 10 мільйонів пікселів (наприклад, 4000x2500)." });
+            }
+
+            if (request.Iterations < 100 || request.Iterations > 5_000_000)
+            {
+                return BadRequest(new { message = "Кількість ітерацій має бути в межах від 100 до 5,000,000." });
+            }
+
+            var activeTasksCount = await _context.RenderTasks
+                .CountAsync(t => t.UserId == userId && (t.Status == "В черзі" || t.Status.Contains("Малювання")));
+
+            if (activeTasksCount >= 3)
+            {
+                return BadRequest(new { message = "Ви досягли ліміту активних завдань (максимум 3). Дочекайтеся завершення попередніх або скасуйте їх." });
+            }
+
             var task = new RenderTask
             {
                 FigureType = request.FigureType,
@@ -83,13 +108,20 @@ namespace Backend.Controllers
                 Iterations = request.Iterations,
                 Status = "В черзі",
                 CreatedAt = DateTime.UtcNow,
-                UserId = userId 
+                UserId = userId
             };
 
             _context.RenderTasks.Add(task);
             await _context.SaveChangesAsync();
 
-            await _taskQueue.QueueBackgroundWorkItemAsync(task);
+            bool isQueued = _taskQueue.TryQueueBackgroundWorkItem(task);
+            if (!isQueued)
+            {
+                _context.RenderTasks.Remove(task);
+                await _context.SaveChangesAsync();
+
+                return StatusCode(503, new { message = "Сервер наразі перевантажений великою кількістю запитів. Спробуйте пізніше." });
+            }
 
             return Ok(new { message = "Завдання додано в чергу", taskId = task.Id });
         }
@@ -102,6 +134,8 @@ namespace Backend.Controllers
             var task = await _context.RenderTasks.FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
             if (task == null) return NotFound("Завдання не знайдено або у вас немає доступу.");
 
+            _cancellationManager.CancelTask(id);
+
             _context.RenderTasks.Remove(task);
             await _context.SaveChangesAsync();
 
@@ -110,7 +144,6 @@ namespace Backend.Controllers
                 var filePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", task.ResultImageUrl.TrimStart('/'));
                 if (System.IO.File.Exists(filePath))
                 {
-                    System.IO.File.Exists(filePath); 
                     System.IO.File.Delete(filePath);
                 }
             }

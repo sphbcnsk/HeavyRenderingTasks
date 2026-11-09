@@ -39,17 +39,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddScoped<CurveRenderer>();
 builder.Services.AddSingleton<RenderTaskQueue>();
+builder.Services.AddSingleton<TaskCancellationManager>(); 
 builder.Services.AddHostedService<RenderBackgroundService>();
 
 var app = builder.Build();
 
 app.UseCors("AllowAll");
 app.UseStaticFiles();
-
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
+
 app.MapGet("/", () => "Бекенд рендерера параметричних кривих працює!");
 
 app.Run();
