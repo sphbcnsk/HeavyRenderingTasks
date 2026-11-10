@@ -22,4 +22,5 @@ public class RenderTask
 
     [JsonIgnore]
     public User? User { get; set; }
+    public string ServerId { get; set; } = string.Empty;
 }

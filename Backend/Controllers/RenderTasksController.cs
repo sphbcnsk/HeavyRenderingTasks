@@ -4,6 +4,7 @@ using Backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration; 
 using System.Security.Claims;
 
 namespace Backend.Controllers
@@ -16,12 +17,14 @@ namespace Backend.Controllers
         private readonly AppDbContext _context;
         private readonly RenderTaskQueue _taskQueue;
         private readonly TaskCancellationManager _cancellationManager;
+        private readonly IConfiguration _configuration; 
 
-        public RenderTasksController(AppDbContext context, RenderTaskQueue taskQueue, TaskCancellationManager cancellationManager)
+        public RenderTasksController(AppDbContext context, RenderTaskQueue taskQueue, TaskCancellationManager cancellationManager, IConfiguration configuration)
         {
             _context = context;
             _taskQueue = taskQueue;
             _cancellationManager = cancellationManager;
+            _configuration = configuration;
         }
 
         private int GetCurrentUserId()
@@ -100,6 +103,8 @@ namespace Backend.Controllers
                 return BadRequest(new { message = "Ви досягли ліміту активних завдань (максимум 3). Дочекайтеся завершення попередніх або скасуйте їх." });
             }
 
+            string currentServerId = _configuration["ServerId"] ?? "UnknownServer";
+
             var task = new RenderTask
             {
                 FigureType = request.FigureType,
@@ -108,7 +113,8 @@ namespace Backend.Controllers
                 Iterations = request.Iterations,
                 Status = "В черзі",
                 CreatedAt = DateTime.UtcNow,
-                UserId = userId
+                UserId = userId,
+                ServerId = currentServerId 
             };
 
             _context.RenderTasks.Add(task);
