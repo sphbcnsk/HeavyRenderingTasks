@@ -2,7 +2,7 @@
     import { ref, onMounted, onUnmounted } from 'vue';
     import api, { cancelTask } from './services/api';
 
-    const isAuthenticated = ref(!!localStorage.getItem('token'));
+    const isAuthenticated = ref(!!sessionStorage.getItem('token'));
     const isLoginMode = ref(true);
     const authForm = ref({ username: '', password: '' });
     const authError = ref('');
@@ -36,7 +36,7 @@
             const response = await api.post(endpoint, authForm.value);
 
             if (isLoginMode.value) {
-                localStorage.setItem('token', response.data.token);
+                sessionStorage.setItem('token', response.data.token);
                 isAuthenticated.value = true;
                 startApp();
             } else {
@@ -50,7 +50,7 @@
     };
 
     const logout = () => {
-        localStorage.removeItem('token');
+        sessionStorage.removeItem('token');
         isAuthenticated.value = false;
         isAdminMode.value = false;
         userRole.value = 'User';
@@ -90,7 +90,7 @@
     };
 
     const startApp = () => {
-        const token = localStorage.getItem('token');
+        const token = sessionStorage.getItem('token');
         if (token) {
             userRole.value = extractRoleFromToken(token);
         }
@@ -129,11 +129,16 @@
     });
 
     const submitTask = async () => {
-        const maxComplexity = 10000000000000;
-        const currentComplexity = canvasWidth.value * canvasHeight.value * iterations.value;
-
-        if (currentComplexity > maxComplexity) {
-            message.value = `Помилка: Перевищено ліміт обчислень! Дозволено ${maxComplexity}.`;
+        if (canvasWidth.value < 100 || canvasHeight.value < 100) {
+            message.value = "Помилка: Мінімальний розмір полотна: 100x100.";
+            return;
+        }
+        if (canvasWidth.value > 5000 || canvasHeight.value > 5000 || (canvasWidth.value * canvasHeight.value > 10000000)) {
+            message.value = "Помилка: Перевищено ліміт пам'яті (макс. 10 млн пікселів).";
+            return;
+        }
+        if (iterations.value < 100 || iterations.value > 5000000) {
+            message.value = "Помилка: Кількість ітерацій має бути від 100 до 5,000,000.";
             return;
         }
 

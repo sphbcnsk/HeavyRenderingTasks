@@ -10,6 +10,8 @@ namespace Backend.Services
 
         public void RegisterTask(Guid taskId, CancellationTokenSource cts)
         {
+            cts.CancelAfter(TimeSpan.FromMinutes(2));
+
             _tokens.TryAdd(taskId, cts);
         }
 
