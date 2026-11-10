@@ -4,7 +4,7 @@ using Backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration; 
+using Microsoft.Extensions.Configuration;
 using System.Security.Claims;
 
 namespace Backend.Controllers
@@ -17,7 +17,7 @@ namespace Backend.Controllers
         private readonly AppDbContext _context;
         private readonly RenderTaskQueue _taskQueue;
         private readonly TaskCancellationManager _cancellationManager;
-        private readonly IConfiguration _configuration; 
+        private readonly IConfiguration _configuration;
 
         public RenderTasksController(AppDbContext context, RenderTaskQueue taskQueue, TaskCancellationManager cancellationManager, IConfiguration configuration)
         {
@@ -64,44 +64,59 @@ namespace Backend.Controllers
             return Ok(tasks);
         }
 
+        [HttpGet("admin/all")]
+        public async Task<IActionResult> GetAllTasksForAdmin()
+        {
+            var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value;
+            if (roleClaim != "Admin")
+            {
+                return Forbid();
+            }
+
+            var adminTasks = await _context.RenderTasks
+                .Join(_context.Users,
+                    task => task.UserId,
+                    user => user.Id,
+                    (task, user) => new
+                    {
+                        id = task.Id,
+                        username = user.Username,
+                        serverId = string.IsNullOrEmpty(task.ServerId) ? "Unknown" : task.ServerId,
+                        figureType = task.FigureType,
+                        iterations = task.Iterations,
+                        status = task.Status,
+                        progress = task.Progress
+                    })
+                .OrderByDescending(t => t.id)
+                .ToListAsync();
+
+            return Ok(adminTasks);
+        }
+
         [HttpPost]
         public async Task<IActionResult> CreateTask([FromBody] RenderTask request)
         {
             var userId = GetCurrentUserId();
 
-            if (userId == 0)
-            {
-                return Unauthorized(new { message = "Помилка токена: неможливо визначити ваш ID. Спробуйте вийти з акаунта і зайти знову." });
-            }
+            if (userId == 0) return Unauthorized(new { message = "Помилка токена." });
 
             var userExists = await _context.Users.AnyAsync(u => u.Id == userId);
-            if (!userExists)
-            {
-                return Unauthorized(new { message = "Ваш обліковий запис не знайдено. Будь ласка, перелогіньтеся." });
-            }
+            if (!userExists) return Unauthorized(new { message = "Обліковий запис не знайдено." });
 
             if (request.CanvasWidth < 100 || request.CanvasHeight < 100)
-            {
-                return BadRequest(new { message = "Мінімальний розмір полотна: 100x100 пікселів." });
-            }
+                return BadRequest(new { message = "Мінімальний розмір полотна: 100x100." });
 
             if (request.CanvasWidth > 5000 || request.CanvasHeight > 5000 || (long)request.CanvasWidth * request.CanvasHeight > 10_000_000)
-            {
-                return BadRequest(new { message = "Перевищено ліміт пам'яті. Максимальний розмір полотна — 10 мільйонів пікселів (наприклад, 4000x2500)." });
-            }
+                return BadRequest(new { message = "Перевищено ліміт пам'яті." });
 
             if (request.Iterations < 100 || request.Iterations > 5_000_000)
-            {
-                return BadRequest(new { message = "Кількість ітерацій має бути в межах від 100 до 5,000,000." });
-            }
+                return BadRequest(new { message = "Кількість ітерацій від 100 до 5,000,000." });
 
             var activeTasksCount = await _context.RenderTasks
                 .CountAsync(t => t.UserId == userId && (t.Status == "В черзі" || t.Status.Contains("Малювання")));
 
             if (activeTasksCount >= 3)
-            {
-                return BadRequest(new { message = "Ви досягли ліміту активних завдань (максимум 3). Дочекайтеся завершення попередніх або скасуйте їх." });
-            }
+                return BadRequest(new { message = "Ви досягли ліміту активних завдань (максимум 3)." });
 
             string currentServerId = _configuration["ServerId"] ?? "UnknownServer";
 
@@ -114,7 +129,7 @@ namespace Backend.Controllers
                 Status = "В черзі",
                 CreatedAt = DateTime.UtcNow,
                 UserId = userId,
-                ServerId = currentServerId 
+                ServerId = currentServerId
             };
 
             _context.RenderTasks.Add(task);
@@ -125,8 +140,7 @@ namespace Backend.Controllers
             {
                 _context.RenderTasks.Remove(task);
                 await _context.SaveChangesAsync();
-
-                return StatusCode(503, new { message = "Сервер наразі перевантажений великою кількістю запитів. Спробуйте пізніше." });
+                return StatusCode(503, new { message = "Сервер перевантажений." });
             }
 
             return Ok(new { message = "Завдання додано в чергу", taskId = task.Id });
@@ -139,7 +153,6 @@ namespace Backend.Controllers
             if (userId == 0) return Unauthorized();
 
             var task = await _context.RenderTasks.FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
-
             if (task == null) return NotFound(new { message = "Задачу не знайдено." });
 
             if (task.Status == "В черзі" || task.Status.Contains("Малювання") || task.Status == "Початок малювання...")
@@ -148,7 +161,6 @@ namespace Backend.Controllers
                 task.Status = "Скасовано";
                 task.Progress = 0;
                 await _context.SaveChangesAsync();
-
                 return Ok(new { message = "Задачу скасовано" });
             }
 
@@ -161,10 +173,9 @@ namespace Backend.Controllers
             var userId = GetCurrentUserId();
 
             var task = await _context.RenderTasks.FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
-            if (task == null) return NotFound(new { message = "Завдання не знайдено або у вас немає доступу." });
+            if (task == null) return NotFound(new { message = "Завдання не знайдено." });
 
             _cancellationManager.CancelTask(id);
-
             _context.RenderTasks.Remove(task);
             await _context.SaveChangesAsync();
 

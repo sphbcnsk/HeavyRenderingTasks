@@ -33,7 +33,8 @@ namespace Backend.Controllers
             var user = new User
             {
                 Username = request.Username,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password)
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                Role = "User" 
             };
 
             _context.Users.Add(user);
@@ -65,6 +66,7 @@ namespace Backend.Controllers
             {
                 new Claim(JwtRegisteredClaimNames.Sub, user.Username),
                 new Claim("userId", user.Id.ToString()),
+                new Claim(ClaimTypes.Role, user.Role ?? "User"), 
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
 
@@ -76,6 +78,19 @@ namespace Backend.Controllers
                 signingCredentials: credentials);
 
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        [HttpGet("make-admin/{username}")]
+        public async Task<IActionResult> MakeAdmin(string username)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == username);
+            if (user == null)
+                return NotFound($"Користувача {username} не знайдено в базі.");
+
+            user.Role = "Admin";
+            await _context.SaveChangesAsync();
+
+            return Ok($"Успіх! Користувач {username} отримав права Адміністратора.");
         }
     }
 }

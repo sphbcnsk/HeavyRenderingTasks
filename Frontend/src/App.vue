@@ -12,8 +12,22 @@
     const canvasHeight = ref(1080);
     const iterations = ref(100000);
     const message = ref('');
+
     const tasks = ref([]);
+    const adminTasks = ref([]);
+
+    const userRole = ref('User');
+    const isAdminMode = ref(false);
     let pollingInterval = null;
+
+    const extractRoleFromToken = (token) => {
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            return payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] || payload.role || 'User';
+        } catch (e) {
+            return 'User';
+        }
+    };
 
     const submitAuth = async () => {
         authError.value = '';
@@ -38,7 +52,10 @@
     const logout = () => {
         localStorage.removeItem('token');
         isAuthenticated.value = false;
+        isAdminMode.value = false;
+        userRole.value = 'User';
         tasks.value = [];
+        adminTasks.value = [];
         message.value = '';
         stopPolling();
     };
@@ -58,16 +75,39 @@
                 resultImageUrl: t.resultImageUrl || t.ResultImageUrl
             }));
         } catch (error) {
-            if (error.response?.status === 401) {
-                logout();
-            }
+            if (error.response?.status === 401) logout();
+        }
+    };
+
+    const fetchAdminTasks = async () => {
+        if (userRole.value !== 'Admin') return;
+        try {
+            const response = await api.get('/RenderTasks/admin/all');
+            adminTasks.value = response.data;
+        } catch (error) {
+            console.error("Помилка завантаження адмінки:", error);
         }
     };
 
     const startApp = () => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            userRole.value = extractRoleFromToken(token);
+        }
+
         fetchTasks();
+        if (userRole.value === 'Admin') {
+            fetchAdminTasks();
+        }
+
         if (!pollingInterval) {
-            pollingInterval = setInterval(fetchTasks, 500);
+            pollingInterval = setInterval(() => {
+                if (!isAdminMode.value) {
+                    fetchTasks();
+                } else {
+                    fetchAdminTasks();
+                }
+            }, 1000);
         }
     };
 
@@ -93,7 +133,7 @@
         const currentComplexity = canvasWidth.value * canvasHeight.value * iterations.value;
 
         if (currentComplexity > maxComplexity) {
-            message.value = `Помилка клієнта: Перевищено ліміт обчислень! Дозволено ${maxComplexity}, у вас ${currentComplexity}. Зменште розмір або кількість ітерацій.`;
+            message.value = `Помилка: Перевищено ліміт обчислень! Дозволено ${maxComplexity}.`;
             return;
         }
 
@@ -108,18 +148,8 @@
 
             message.value = 'Успіх! Завдання успішно додано в чергу.';
             await fetchTasks();
-
         } catch (error) {
-            if (error.response) {
-                let errorData = error.response.data;
-                if (typeof errorData === 'object') {
-                    message.value = `Помилка: ${errorData.title || JSON.stringify(errorData)}`;
-                } else {
-                    message.value = `Помилка: ${errorData}`;
-                }
-            } else {
-                message.value = `Помилка з'єднання: ${error.message}`;
-            }
+            message.value = `Помилка: ${error.response?.data?.message || error.message}`;
         }
     };
 
@@ -175,55 +205,28 @@
                 <button @click="logout" class="logout-btn">Вийти</button>
             </div>
 
-            <form @submit.prevent="submitTask" class="render-form">
-                <div class="form-group">
-                    <label>Тип фігури:</label>
-                    <select v-model="figureType">
-                        <option value="Epicycloid">Епіциклоїда</option>
-                        <option value="Lissajous">Фігура Ліссажу</option>
-                        <option value="Rose">Полярна троянда</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Ширина полотна (px):</label>
-                    <input type="number" v-model="canvasWidth" min="100" />
-                </div>
-
-                <div class="form-group">
-                    <label>Висота полотна (px):</label>
-                    <input type="number" v-model="canvasHeight" min="100" />
-                </div>
-
-                <div class="form-group">
-                    <label>Кількість ітерацій:</label>
-                    <input type="number" v-model="iterations" min="100" />
-                </div>
-
-                <button type="submit">Створити задачу</button>
-            </form>
-
-            <div v-if="message" class="status-message">
-                {{ message }}
+            <div v-if="userRole === 'Admin'" class="admin-controls" style="margin-bottom: 20px; display: flex; gap: 10px; justify-content: center;">
+                <button @click="isAdminMode = false" :style="{ backgroundColor: !isAdminMode ? '#1a5e55' : '#54bfb0' }">Мій кабінет</button>
+                <button @click="isAdminMode = true" :style="{ backgroundColor: isAdminMode ? '#1a5e55' : '#54bfb0' }">Панель адміністратора</button>
             </div>
 
-            <div class="tasks-list" v-if="tasks.length > 0">
-                <h2>Ваші завдання</h2>
+            <div v-if="isAdminMode" class="tasks-list">
+                <h2>Глобальний моніторинг серверів</h2>
                 <table>
                     <thead>
                         <tr>
+                            <th>Сервер</th>
+                            <th>Користувач</th>
                             <th>Фігура</th>
-                            <th>Розмір (px)</th>
                             <th>Ітерації</th>
                             <th>Статус</th>
-                            <th>Результат</th>
-                            <th>Дії</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="task in tasks" :key="task.id">
+                        <tr v-for="task in adminTasks" :key="task.id">
+                            <td><strong style="color: #61344B;">{{ task.serverId }}</strong></td>
+                            <td>{{ task.username }}</td>
                             <td>{{ task.figureType }}</td>
-                            <td>{{ task.canvasWidth }} x {{ task.canvasHeight }}</td>
                             <td>{{ task.iterations }}</td>
                             <td>
                                 <strong>{{ task.status }}</strong>
@@ -231,25 +234,88 @@
                                     ({{ task.progress || 0 }}%)
                                 </div>
                             </td>
-                            <td>
-                                <img v-if="task.resultImageUrl" :src="`https://localhost:5005${task.resultImageUrl}`" alt="Крива" height="60" style="border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;" title="Відкрити зображення" onclick="window.open(this.src, '_blank')" />
-                                <span v-else>—</span>
-                            </td>
-                            <td>
-                                <button v-if="task.status === 'В черзі' || task.status === 'Початок малювання...' || task.status.includes('Малювання')"
-                                        @click="handleCancelTask(task.id)"
-                                        class="cancel-btn">
-                                    Скасувати
-                                </button>
-                                <button v-else
-                                        @click="deleteTask(task.id)"
-                                        class="delete-btn">
-                                    Видалити
-                                </button>
-                            </td>
                         </tr>
                     </tbody>
                 </table>
+            </div>
+
+            <div v-else>
+                <form @submit.prevent="submitTask" class="render-form">
+                    <div class="form-group">
+                        <label>Тип фігури:</label>
+                        <select v-model="figureType">
+                            <option value="Epicycloid">Епіциклоїда</option>
+                            <option value="Lissajous">Фігура Ліссажу</option>
+                            <option value="Rose">Полярна троянда</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Ширина полотна (px):</label>
+                        <input type="number" v-model="canvasWidth" min="100" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Висота полотна (px):</label>
+                        <input type="number" v-model="canvasHeight" min="100" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Кількість ітерацій:</label>
+                        <input type="number" v-model="iterations" min="100" />
+                    </div>
+
+                    <button type="submit">Створити задачу</button>
+                </form>
+
+                <div v-if="message" class="status-message">
+                    {{ message }}
+                </div>
+
+                <div class="tasks-list" v-if="tasks.length > 0">
+                    <h2>Ваші завдання</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Фігура</th>
+                                <th>Розмір (px)</th>
+                                <th>Ітерації</th>
+                                <th>Статус</th>
+                                <th>Результат</th>
+                                <th>Дії</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="task in tasks" :key="task.id">
+                                <td>{{ task.figureType }}</td>
+                                <td>{{ task.canvasWidth }} x {{ task.canvasHeight }}</td>
+                                <td>{{ task.iterations }}</td>
+                                <td>
+                                    <strong>{{ task.status }}</strong>
+                                    <div v-if="task.status !== 'Виконано' && task.status !== 'Помилка' && task.status !== 'Скасовано'" style="font-size: 13px; color: #54bfb0; margin-top: 4px;">
+                                        ({{ task.progress || 0 }}%)
+                                    </div>
+                                </td>
+                                <td>
+                                    <img v-if="task.resultImageUrl" :src="`https://localhost:5005${task.resultImageUrl}`" alt="Крива" height="60" style="border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;" title="Відкрити зображення" onclick="window.open(this.src, '_blank')" />
+                                    <span v-else>—</span>
+                                </td>
+                                <td>
+                                    <button v-if="task.status === 'В черзі' || task.status === 'Початок малювання...' || task.status.includes('Малювання')"
+                                            @click="handleCancelTask(task.id)"
+                                            class="cancel-btn">
+                                        Скасувати
+                                    </button>
+                                    <button v-else
+                                            @click="deleteTask(task.id)"
+                                            class="delete-btn">
+                                        Видалити
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>

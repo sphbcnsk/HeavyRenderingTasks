@@ -59,6 +59,7 @@ namespace Backend.Services
                 if (i % 1000 == 0)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    Thread.Sleep(1);
                 }
 
                 double t = i * 0.005;
