@@ -47,7 +47,6 @@
         if (!isAuthenticated.value) return;
         try {
             const response = await api.get('/RenderTasks');
-            console.log("Отримані дані з бекенду:", response.data);
             tasks.value = response.data.map(t => ({
                 id: t.id || t.Id,
                 figureType: t.figureType || t.FigureType,
@@ -59,7 +58,6 @@
                 resultImageUrl: t.resultImageUrl || t.ResultImageUrl
             }));
         } catch (error) {
-            console.error("Помилка завантаження списку:", error);
             if (error.response?.status === 401) {
                 logout();
             }
@@ -101,14 +99,14 @@
 
         try {
             message.value = 'Відправка...';
-            const response = await api.post('/RenderTasks', {
+            await api.post('/RenderTasks', {
                 figureType: figureType.value,
                 canvasWidth: canvasWidth.value,
                 canvasHeight: canvasHeight.value,
                 iterations: iterations.value
             });
 
-            message.value = `Успіх! ${response.data.message}. ID задачі: ${response.data.taskId}`;
+            message.value = 'Успіх! Завдання успішно додано в чергу.';
             await fetchTasks();
 
         } catch (error) {
@@ -131,7 +129,6 @@
             await cancelTask(id);
             await fetchTasks();
         } catch (error) {
-            console.error("Помилка скасування:", error);
             alert(error.response?.data?.message || "Не вдалося скасувати завдання.");
         }
     };
@@ -142,7 +139,6 @@
             await api.delete(`/RenderTasks/${id}`);
             await fetchTasks();
         } catch (error) {
-            console.error("Помилка видалення:", error);
             alert("Не вдалося видалити завдання.");
         }
     };
@@ -185,6 +181,7 @@
                     <select v-model="figureType">
                         <option value="Epicycloid">Епіциклоїда</option>
                         <option value="Lissajous">Фігура Ліссажу</option>
+                        <option value="Rose">Полярна троянда</option>
                     </select>
                 </div>
 
@@ -215,7 +212,6 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>ID</th>
                             <th>Фігура</th>
                             <th>Розмір (px)</th>
                             <th>Ітерації</th>
@@ -226,7 +222,6 @@
                     </thead>
                     <tbody>
                         <tr v-for="task in tasks" :key="task.id">
-                            <td>{{ String(task.id).substring(0, 8) }}...</td>
                             <td>{{ task.figureType }}</td>
                             <td>{{ task.canvasWidth }} x {{ task.canvasHeight }}</td>
                             <td>{{ task.iterations }}</td>

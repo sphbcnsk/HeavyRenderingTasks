@@ -3,7 +3,7 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
 using System.IO;
-using System.Threading; 
+using System.Threading;
 
 namespace Backend.Services
 {
@@ -15,6 +15,25 @@ namespace Backend.Services
             int height = task.CanvasHeight;
             int iterations = task.Iterations;
 
+            bool isLissajous = !string.IsNullOrEmpty(task.FigureType) && task.FigureType.Contains("Lissajous", StringComparison.OrdinalIgnoreCase);
+            bool isRose = !string.IsNullOrEmpty(task.FigureType) && task.FigureType.Contains("Rose", StringComparison.OrdinalIgnoreCase);
+
+            Rgba32 backgroundColor;
+            if (isLissajous)
+            {
+                backgroundColor = new Rgba32(220, 100, 20); 
+            }
+            else if (isRose)
+            {
+                backgroundColor = new Rgba32(30, 130, 60); 
+            }
+            else 
+            {
+                backgroundColor = new Rgba32(180, 20, 40); 
+            }
+
+            Rgba32 figureColor = new Rgba32(255, 240, 50);
+
             using var image = new Image<Rgba32>(width, height);
 
             image.ProcessPixelRows(accessor =>
@@ -24,16 +43,13 @@ namespace Backend.Services
                     Span<Rgba32> pixelRow = accessor.GetRowSpan(y);
                     for (int x = 0; x < pixelRow.Length; x++)
                     {
-                        pixelRow[x] = new Rgba32(255, 255, 0);
+                        pixelRow[x] = backgroundColor;
                     }
                 }
             });
 
             double centerX = width / 2.0;
             double centerY = height / 2.0;
-
-            bool isLissajous = !string.IsNullOrEmpty(task.FigureType) &&
-                               task.FigureType.Contains("Lissajous", StringComparison.OrdinalIgnoreCase);
 
             int reportStep = iterations / 20;
             if (reportStep == 0) reportStep = 1;
@@ -43,7 +59,6 @@ namespace Backend.Services
                 if (i % 1000 == 0)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-
                 }
 
                 double t = i * 0.005;
@@ -54,16 +69,21 @@ namespace Backend.Services
                     double a = 5.0;
                     double b = 4.0;
                     double lissajousScale = Math.Min(width, height) * 0.4;
-
                     px = Math.Sin(a * t + Math.PI / 2) * lissajousScale;
                     py = Math.Sin(b * t) * lissajousScale;
+                }
+                else if (isRose)
+                {
+                    double k = 5.0;
+                    double roseScale = Math.Min(width, height) * 0.4;
+                    px = Math.Cos(k * t) * Math.Cos(t) * roseScale;
+                    py = Math.Cos(k * t) * Math.Sin(t) * roseScale;
                 }
                 else
                 {
                     double R = 50.0;
                     double r = 11.0;
                     double epicycloidScale = Math.Min(width, height) / (2.0 * (R + 2.0 * r)) * 0.8;
-
                     px = ((R + r) * Math.Cos(t) - r * Math.Cos((R + r) / r * t)) * epicycloidScale;
                     py = ((R + r) * Math.Sin(t) - r * Math.Sin((R + r) / r * t)) * epicycloidScale;
                 }
@@ -80,10 +100,7 @@ namespace Backend.Services
 
                         if (drawX >= 0 && drawX < width && drawY >= 0 && drawY < height)
                         {
-                            if (isLissajous)
-                                image[drawX, drawY] = new Rgba32(255, 105, 180);
-                            else
-                                image[drawX, drawY] = new Rgba32(0, 210, 255);
+                            image[drawX, drawY] = figureColor;
                         }
                     }
                 }
