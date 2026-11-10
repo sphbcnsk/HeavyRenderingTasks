@@ -15,4 +15,6 @@ api.interceptors.request.use(config => {
     return config;
 });
 
+export const cancelTask = (id) => api.post(`/RenderTasks/${id}/cancel`);
+
 export default api;

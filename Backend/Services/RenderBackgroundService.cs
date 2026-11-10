@@ -52,43 +52,64 @@ namespace Backend.Services
 
                             Action<int> onProgress = (percent) =>
                             {
-                                dbTask.Status = $"Малювання: {percent}%";
-                                dbTask.Progress = percent;
+                                if (cts.Token.IsCancellationRequested) return;
 
                                 if (percent - lastSavedProgress >= 5 || percent == 100)
                                 {
+                                    // АТОМАРНЕ ОНОВЛЕННЯ: оновлюємо відсотки ТІЛЬКИ якщо статус ще не "Скасовано"
+                                    int rowsUpdated = dbContext.RenderTasks
+                                        .Where(t => t.Id == task.Id && t.Status != "Скасовано")
+                                        .ExecuteUpdate(s => s
+                                            .SetProperty(t => t.Status, $"Малювання: {percent}%")
+                                            .SetProperty(t => t.Progress, percent));
+
+                                    if (rowsUpdated == 0)
+                                    {
+                                        // Якщо оновлено 0 рядків — інший сервер (через Load Balancer) вже скасував задачу!
+                                        cts.Cancel();
+                                        return;
+                                    }
+
                                     lastSavedProgress = percent;
-                                    dbContext.SaveChanges();
                                 }
                             };
 
                             dbTask.Status = "Початок малювання...";
                             await dbContext.SaveChangesAsync(stoppingToken);
 
+                            // Запуск малювання
                             string imageUrl = renderer.RenderCurve(task, _env.WebRootPath, onProgress, cts.Token);
 
-                            dbTask.Status = "Виконано";
-                            dbTask.Progress = 100;
-                            dbTask.CompletedAt = DateTime.UtcNow;
-                            dbTask.ResultImageUrl = imageUrl;
-                            await dbContext.SaveChangesAsync(stoppingToken);
+                            if (!cts.Token.IsCancellationRequested)
+                            {
+                                // Оновлюємо фінальний статус атомарно
+                                dbContext.RenderTasks
+                                    .Where(t => t.Id == task.Id && t.Status != "Скасовано")
+                                    .ExecuteUpdate(s => s
+                                        .SetProperty(t => t.Status, "Виконано")
+                                        .SetProperty(t => t.Progress, 100)
+                                        .SetProperty(t => t.CompletedAt, DateTime.UtcNow)
+                                        .SetProperty(t => t.ResultImageUrl, imageUrl));
+                            }
                         }
                         catch (OperationCanceledException)
                         {
-                            Console.WriteLine($"Задачу {task.Id} скасовано користувачем.");
+                            Console.WriteLine($"Задачу {task.Id} успішно перервано (Скасовано).");
                         }
                         catch (Exception innerEx)
                         {
                             Console.WriteLine($"Помилка рендеру задачі {task.Id}: {innerEx.Message}");
-                            dbTask.Status = "Помилка";
-                            dbTask.Progress = 0;
-                            await dbContext.SaveChangesAsync(stoppingToken);
+                            dbContext.RenderTasks
+                                .Where(t => t.Id == task.Id)
+                                .ExecuteUpdate(s => s
+                                    .SetProperty(t => t.Status, "Помилка")
+                                    .SetProperty(t => t.Progress, 0));
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Критична помилка при обробці черги для задачі {task.Id}: {ex.Message}");
+                    Console.WriteLine($"Критична помилка при обробці черги: {ex.Message}");
                 }
                 finally
                 {

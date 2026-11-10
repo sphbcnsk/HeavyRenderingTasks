@@ -1,6 +1,6 @@
 <script setup>
     import { ref, onMounted, onUnmounted } from 'vue';
-    import api from './services/api';
+    import api, { cancelTask } from './services/api';
 
     const isAuthenticated = ref(!!localStorage.getItem('token'));
     const isLoginMode = ref(true);
@@ -125,8 +125,19 @@
         }
     };
 
+    const handleCancelTask = async (id) => {
+        if (!confirm('Ви впевнені, що хочете зупинити виконання цього завдання?')) return;
+        try {
+            await cancelTask(id);
+            await fetchTasks();
+        } catch (error) {
+            console.error("Помилка скасування:", error);
+            alert(error.response?.data?.message || "Не вдалося скасувати завдання.");
+        }
+    };
+
     const deleteTask = async (id) => {
-        if (!confirm('Ви впевнені, що хочете видалити/скасувати це завдання?')) return;
+        if (!confirm('Ви впевнені, що хочете видалити це завдання з історії?')) return;
         try {
             await api.delete(`/RenderTasks/${id}`);
             await fetchTasks();
@@ -221,7 +232,7 @@
                             <td>{{ task.iterations }}</td>
                             <td>
                                 <strong>{{ task.status }}</strong>
-                                <div v-if="task.status !== 'Виконано' && task.status !== 'Помилка'" style="font-size: 13px; color: #54bfb0; margin-top: 4px;">
+                                <div v-if="task.status !== 'Виконано' && task.status !== 'Помилка' && task.status !== 'Скасовано'" style="font-size: 13px; color: #54bfb0; margin-top: 4px;">
                                     ({{ task.progress || 0 }}%)
                                 </div>
                             </td>
@@ -230,7 +241,16 @@
                                 <span v-else>—</span>
                             </td>
                             <td>
-                                <button @click="deleteTask(task.id)" class="delete-btn">Видалити</button>
+                                <button v-if="task.status === 'В черзі' || task.status === 'Початок малювання...' || task.status.includes('Малювання')"
+                                        @click="handleCancelTask(task.id)"
+                                        class="cancel-btn">
+                                    Скасувати
+                                </button>
+                                <button v-else
+                                        @click="deleteTask(task.id)"
+                                        class="delete-btn">
+                                    Видалити
+                                </button>
                             </td>
                         </tr>
                     </tbody>
@@ -385,6 +405,21 @@
     tr:hover {
         background-color: #fcfcfc;
     }
+
+    .cancel-btn {
+        background-color: #f39c12;
+        padding: 6px 12px;
+        font-size: 12px;
+        margin-top: 0;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+        .cancel-btn:hover {
+            background-color: #d68910;
+        }
 
     .delete-btn {
         background-color: #e74c3c;

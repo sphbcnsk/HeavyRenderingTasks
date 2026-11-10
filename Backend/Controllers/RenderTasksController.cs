@@ -126,13 +126,36 @@ namespace Backend.Controllers
             return Ok(new { message = "Завдання додано в чергу", taskId = task.Id });
         }
 
+        [HttpPost("{id}/cancel")]
+        public async Task<IActionResult> CancelTask(Guid id)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
+            var task = await _context.RenderTasks.FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+
+            if (task == null) return NotFound(new { message = "Задачу не знайдено." });
+
+            if (task.Status == "В черзі" || task.Status.Contains("Малювання") || task.Status == "Початок малювання...")
+            {
+                _cancellationManager.CancelTask(id);
+                task.Status = "Скасовано";
+                task.Progress = 0;
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Задачу скасовано" });
+            }
+
+            return BadRequest(new { message = "Цю задачу вже завершено або скасовано." });
+        }
+
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTask(Guid id)
         {
             var userId = GetCurrentUserId();
 
             var task = await _context.RenderTasks.FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
-            if (task == null) return NotFound("Завдання не знайдено або у вас немає доступу.");
+            if (task == null) return NotFound(new { message = "Завдання не знайдено або у вас немає доступу." });
 
             _cancellationManager.CancelTask(id);
 
